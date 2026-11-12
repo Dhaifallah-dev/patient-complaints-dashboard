@@ -1,0 +1,353 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحليل بلاغات تجربة المريض</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#f3f5f9;color:#1e293b;
+  font-family:Arial,Tahoma,sans-serif
+}
+header{
+  background:#123b56;color:white;padding:25px 18px;
+  text-align:center
+}
+header h1{font-size:23px;margin:0 0 9px}
+header p{font-size:13px;color:#d5e5ef;margin:0}
+.container{max-width:1000px;margin:auto;padding:18px}
+.card{
+  background:white;border-radius:14px;padding:18px;
+  margin-bottom:16px;box-shadow:0 2px 9px #0000000b
+}
+h2{font-size:18px;margin:0 0 16px;color:#123b56}
+.form{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:12px
+}
+label{font-size:13px;font-weight:bold}
+input{
+  width:100%;padding:12px;border:1px solid #d7dee8;
+  border-radius:9px;margin-top:7px;font-size:15px
+}
+button{
+  border:0;border-radius:9px;padding:12px 16px;
+  font-size:14px;font-weight:bold;cursor:pointer
+}
+.primary{background:#147d70;color:white}
+.export{background:#123b56;color:white}
+.danger{background:#fee2e2;color:#b91c1c}
+.small{padding:7px 10px;font-size:12px}
+.stats{
+  display:grid;grid-template-columns:repeat(2,1fr);
+  gap:12px
+}
+.stat{
+  background:#f7fafc;border:1px solid #e5eaf0;
+  padding:16px;border-radius:12px
+}
+.stat span{font-size:13px;color:#64748b}
+.stat strong{
+  display:block;font-size:27px;color:#147d70;
+  margin-top:9px
+}
+.chart-wrap{height:280px;position:relative}
+canvas{width:100%;height:100%}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:12px 8px;text-align:center;border-bottom:1px solid #e9edf2}
+th{background:#f1f5f9}
+.empty{text-align:center;color:#94a3b8;padding:25px}
+.analysis{
+  background:#eff8f6;padding:15px;border-radius:10px;
+  line-height:1.9;font-size:14px
+}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}
+footer{text-align:center;color:#94a3b8;font-size:12px;padding:15px}
+@media(max-width:550px){
+  .form{grid-template-columns:1fr}
+  .stats{grid-template-columns:1fr 1fr}
+  .stat strong{font-size:22px}
+  th,td{padding:9px 4px;font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<header>
+<h1>لوحة تحليل بلاغات تجربة المريض</h1>
+<p>نظام متابعة وتحليل البلاغات اليومية</p>
+</header>
+
+<div class="container">
+
+<div class="card">
+<h2>إضافة البلاغات اليومية</h2>
+<div class="form">
+<label>التاريخ
+<input type="date" id="date">
+</label>
+<label>عدد البلاغات
+<input type="number" id="count" min="0" placeholder="مثلاً 5">
+</label>
+</div>
+<div class="actions">
+<button class="primary" onclick="saveData()">حفظ البلاغات</button>
+<button class="export" onclick="exportCSV()">تصدير Excel</button>
+</div>
+</div>
+
+<div class="card">
+<h2>المؤشرات الرئيسية</h2>
+<div class="stats">
+<div class="stat">
+<span>إجمالي البلاغات</span>
+<strong id="total">0</strong>
+</div>
+<div class="stat">
+<span>متوسط البلاغات اليومي</span>
+<strong id="average">0</strong>
+</div>
+<div class="stat">
+<span>بلاغات هذا الأسبوع</span>
+<strong id="weekly">0</strong>
+</div>
+<div class="stat">
+<span>بلاغات هذا الشهر</span>
+<strong id="monthly">0</strong>
+</div>
+</div>
+</div>
+
+<div class="card">
+<h2>الرسم البياني للبلاغات اليومية</h2>
+<div class="chart-wrap">
+<canvas id="chart"></canvas>
+</div>
+</div>
+
+<div class="card">
+<h2>التحليل التلقائي</h2>
+<div class="analysis" id="analysis">
+أضف بيانات البلاغات لعرض التحليل.
+</div>
+</div>
+
+<div class="card">
+<h2>سجل البلاغات</h2>
+<div style="overflow-x:auto">
+<table>
+<thead>
+<tr>
+<th>التاريخ</th>
+<th>عدد البلاغات</th>
+<th>الإجراء</th>
+</tr>
+</thead>
+<tbody id="records">
+<tr><td colspan="3" class="empty">لا توجد بيانات حتى الآن</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<footer>
+نظام تحليل البلاغات - تجربة المريض
+</footer>
+</div>
+
+<script>
+let data = JSON.parse(localStorage.getItem("complaintsData") || "[]");
+
+const today = new Date();
+document.getElementById("date").value =
+today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
+
+function saveData(){
+  const date=document.getElementById("date").value;
+  const count=Number(document.getElementById("count").value);
+
+  if(!date || document.getElementById("count").value===""){
+    alert("يرجى إدخال التاريخ وعدد البلاغات");
+    return;
+  }
+  if(!Number.isInteger(count)||count<0){
+    alert("أدخل عدداً صحيحاً غير سالب");
+    return;
+  }
+
+  const existing=data.findIndex(x=>x.date===date);
+  if(existing>=0){
+    data[existing].count=count;
+  }else{
+    data.push({date,count});
+  }
+
+  data.sort((a,b)=>a.date.localeCompare(b.date));
+  localStorage.setItem("complaintsData",JSON.stringify(data));
+  document.getElementById("count").value="";
+  updateDashboard();
+  alert("تم حفظ البيانات بنجاح");
+}
+
+function deleteData(date){
+  if(confirm("هل تريد حذف بيانات هذا اليوم؟")){
+    data=data.filter(x=>x.date!==date);
+    localStorage.setItem("complaintsData",JSON.stringify(data));
+    updateDashboard();
+  }
+}
+
+function updateDashboard(){
+  const total=data.reduce((s,x)=>s+x.count,0);
+  const average=data.length?total/data.length:0;
+
+  const now=new Date();
+  const startWeek=new Date(now);
+  startWeek.setHours(0,0,0,0);
+  startWeek.setDate(now.getDate()-((now.getDay()+6)%7));
+
+  const weekly=data.filter(x=>{
+    const d=new Date(x.date+"T00:00:00");
+    return d>=startWeek && d<=now;
+  }).reduce((s,x)=>s+x.count,0);
+
+  const monthly=data.filter(x=>{
+    const d=new Date(x.date+"T00:00:00");
+    return d.getFullYear()===now.getFullYear() &&
+           d.getMonth()===now.getMonth();
+  }).reduce((s,x)=>s+x.count,0);
+
+  document.getElementById("total").textContent=total;
+  document.getElementById("average").textContent=average.toFixed(1);
+  document.getElementById("weekly").textContent=weekly;
+  document.getElementById("monthly").textContent=monthly;
+
+  const tbody=document.getElementById("records");
+  if(!data.length){
+    tbody.innerHTML='<tr><td colspan="3" class="empty">لا توجد بيانات حتى الآن</td></tr>';
+  }else{
+    tbody.innerHTML=data.slice().reverse().map(x=>`
+      <tr>
+        <td>${x.date}</td>
+        <td>${x.count}</td>
+        <td><button class="danger small" onclick="deleteData('${x.date}')">حذف</button></td>
+      </tr>
+    `).join("");
+  }
+
+  makeAnalysis(total,average);
+  drawChart();
+}
+
+function makeAnalysis(total,average){
+  const box=document.getElementById("analysis");
+  if(!data.length){
+    box.textContent="أضف بيانات البلاغات لعرض التحليل.";
+    return;
+  }
+
+  const highest=data.reduce((a,b)=>b.count>a.count?b:a);
+  const lowest=data.reduce((a,b)=>b.count<a.count?b:a);
+  const above=data.filter(x=>x.count>average).length;
+
+  box.innerHTML=`
+    <b>ملخص تحليل البلاغات:</b><br>
+    إجمالي البلاغات المسجلة: ${total}<br>
+    متوسط البلاغات في اليوم المسجل: ${average.toFixed(1)}<br>
+    أعلى عدد بلاغات: ${highest.count} بتاريخ ${highest.date}<br>
+    أقل عدد بلاغات: ${lowest.count} بتاريخ ${lowest.date}<br>
+    عدد الأيام التي تجاوزت المتوسط: ${above}<br>
+    <b>ملاحظة تحليلية:</b> تتم متابعة الأيام التي سجلت أعداداً أعلى من المتوسط لدراسة أسباب ارتفاع البلاغات وتحديد فرص التحسين.
+  `;
+}
+
+function drawChart(){
+  const canvas=document.getElementById("chart");
+  const ctx=canvas.getContext("2d");
+  const w=canvas.clientWidth;
+  const h=canvas.clientHeight;
+  const ratio=window.devicePixelRatio||1;
+
+  canvas.width=w*ratio;
+  canvas.height=h*ratio;
+  ctx.scale(ratio,ratio);
+  ctx.clearRect(0,0,w,h);
+
+  if(!data.length){
+    ctx.fillStyle="#94a3b8";
+    ctx.font="14px Arial";
+    ctx.textAlign="center";
+    ctx.fillText("لا توجد بيانات للرسم البياني",w/2,h/2);
+    return;
+  }
+
+  const items=data.slice(-14);
+  const max=Math.max(5,...items.map(x=>x.count));
+  const pad={top:25,bottom:55,left:30,right:20};
+  const cw=w-pad.left-pad.right;
+  const ch=h-pad.top-pad.bottom;
+  const step=cw/items.length;
+  const bar=Math.min(34,step*.55);
+
+  ctx.font="11px Arial";
+  ctx.textAlign="center";
+
+  for(let i=0;i<=4;i++){
+    const y=pad.top+ch*i/4;
+    ctx.strokeStyle="#e9eef3";
+    ctx.beginPath();
+    ctx.moveTo(pad.left,y);
+    ctx.lineTo(w-pad.right,y);
+    ctx.stroke();
+
+    ctx.fillStyle="#64748b";
+    ctx.fillText(Math.round(max*(1-i/4)),pad.left-5,y-4);
+  }
+
+  items.forEach((item,i)=>{
+    const bh=(item.count/max)*ch;
+    const x=pad.left+i*step+(step-bar)/2;
+    const y=pad.top+ch-bh;
+
+    ctx.fillStyle="#168578";
+    ctx.beginPath();
+    ctx.roundRect(x,y,bar,Math.max(2,bh),5);
+    ctx.fill();
+
+    ctx.fillStyle="#334155";
+    ctx.fillText(item.count,x+bar/2,y-7);
+
+    ctx.save();
+    ctx.translate(x+bar/2,h-15);
+    ctx.rotate(-.45);
+    ctx.fillStyle="#64748b";
+    ctx.fillText(item.date.slice(5),0,0);
+    ctx.restore();
+  });
+}
+
+function exportCSV(){
+  if(!data.length){
+    alert("لا توجد بيانات للتصدير");
+    return;
+  }
+  const rows=[["التاريخ","عدد البلاغات"],
+    ...data.map(x=>[x.date,x.count])];
+
+  const csv="\uFEFF"+rows.map(r=>r.join(",")).join("\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="patient-complaints.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+window.addEventListener("resize",drawChart);
+updateDashboard();
+</script>
+</body>
+</html>
